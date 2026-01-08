@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Story Creator | Glass Box Engine</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-orb orb-1"></div>
+    <div class="background-orb orb-2"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>AI Story Creator</h1>
+            <p>Neuro-Symbolic Narrative Engine</p>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="main-grid">
+            
+            <!-- Left Panel: Input & Controls -->
+            <section class="panel input-panel">
+                <h2>Configuration</h2>
+                
+                <div class="form-group">
+                    <label for="genre">Genre / Style</label>
+                    <input type="text" id="genre" placeholder="e.g., Cyberpunk Noir, High Fantasy" value="General Fiction">
+                </div>
+
+                <div class="form-group">
+                    <label for="audience">Target Audience</label>
+                    <select id="audience" class="glass-select">
+                        <option value="General">General</option>
+                        <option value="Young Adult">Young Adult</option>
+                        <option value="Children">Children</option>
+                        <option value="Adult">Adult</option>
+                        <option value="Academic">Academic</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="tone">Tone</label>
+                    <input type="text" id="tone" placeholder="e.g., Dark, Whimsical, Satirical" value="Neutral">
+                </div>
+
+                <div class="form-group">
+                    <label for="wordsPerScene">Words per Scene: <span id="wordCountValue">200</span></label>
+                    <input type="range" id="wordsPerScene" min="50" max="1000" step="50" value="200" 
+                           oninput="document.getElementById('wordCountValue').textContent = this.value">
+                </div>
+
+                <div class="form-group">
+                    <label for="safetyLevel">Content Safety</label>
+                    <select id="safetyLevel" class="glass-select">
+                        <option value="none">None (Full Creative Freedom)</option>
+                        <option value="low">Low (Block Extreme Only)</option>
+                        <option value="medium">Medium (Balanced)</option>
+                        <option value="high">High (Family Friendly)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="prompt">Story Prompt</label>
+                    <textarea id="prompt" placeholder="Enter your story idea here... (e.g., A robot discovers it has a soul in a rainy neo-tokyo alleyway)"></textarea>
+                </div>
+
+                <button id="generateBtn" class="primary-btn">
+                    <span class="icon">✨</span> Generate Story
+                </button>
+
+                <div id="statusIndicator" class="status hidden">
+                    <div class="spinner"></div>
+                    <span id="statusText">Ready</span>
+                </div>
+            </section>
+
+            <!-- Right Panel: Output & Glass Box -->
+            <section class="panel output-panel">
+                <div class="output-header">
+                    <h2>Live Narrative Output</h2>
+                    <span class="badge">Phase 1: Walking Skeleton</span>
+                </div>
+
+                <!-- The "Glass Box" - Thinking Process Visibility -->
+                <div id="thinking-accordion" class="accordion hidden">
+                    <div class="accordion-header" onclick="toggleAccordion()">
+                        <span class="accordion-icon">🧠</span>
+                        <span class="accordion-title">Thinking Process</span>
+                        <span class="accordion-chevron">▼</span>
+                    </div>
+                    <div class="accordion-content">
+                        <!-- NEW: Metrics Panel -->
+                        <div class="thinking-metrics">
+                            <div class="metric">
+                                <span class="metric-label">Graph Nodes:</span>
+                                <span id="metricGraphNodes" class="metric-value">0</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Chunks Rendered:</span>
+                                <span id="metricChunksRendered" class="metric-value">0</span>
+                            </div>
+                        </div>
+                        
+                        <div id="thinking-log" class="log-content">
+                            <!-- Logs will appear here -->
+                            <div class="log-entry">Waiting for input...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Story Text Render Area -->
+                <div id="story-output" class="story-content">
+                    <p class="placeholder-text">Your story will appear here...</p>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
