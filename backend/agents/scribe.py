@@ -71,15 +71,26 @@ CURRENT EVENT (Node ID: {node.id}):
 Write the prose for ONLY this event. ~{words_per_scene} words.
 """
         try:
-            print(f"🔄 Calling Gemini API with safety_level={safety_level}...")
+            # TRANSPARENCY: Log the prompt for debugging
+            print(f"📝 SCRIBE PROMPT for node {node.id}:")
+            print(f"   Genre: {target_genre}, Audience: {target_audience}, Tone: {tone}")
+            print(f"   Action: {node.action}")
+            print(f"   Actors: {node.actors}")
+            print(f"   Target words: {words_per_scene}")
+            
             logger.info(f"Scribe: Generating prose for node {node.id}...")
+            
             # Call Gemini for prose
             response = await gemini_client.generate_structured(
                 prompt=prompt,
                 response_model=ScribeOutput,
                 safety_level=safety_level
             )
-            print(f"Scribe: Generated {len(response.prose.split())} words.")
+            
+            # TRANSPARENCY: Show what was generated
+            print(f"✅ Scribe: Generated {len(response.prose.split())} words.")
+            print(f"   First 100 chars: {response.prose[:100]}...")
+            
             logger.info(f"Scribe: Successfully generated {len(response.prose.split())} words.")
             return response.prose
         except Exception as e:

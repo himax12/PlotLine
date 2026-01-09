@@ -120,17 +120,109 @@ function handleThinkingEvent(event) {
             addThinkingEntry(timestamp, `🛡️ Safety: ${event.data.safety_level}`);
             break;
         
+        // NEW: Input Guardrail Events
+        case 'input_guard_start':
+            addThinkingEntry(timestamp, '🛡️ Checking input safety...');
+            break;
+            
+        case 'input_guard_passed':
+            addThinkingEntry(timestamp, '✅ Input safety check passed', 'complete');
+            break;
+            
+        case 'input_guard_warning':
+            addThinkingEntry(timestamp, `⚠️ Input Warning: ${event.data.message}`, 'warning');
+            if (event.data.violations && event.data.violations.length > 0) {
+                event.data.violations.forEach(v => {
+                    addThinkingEntry(timestamp, ` - ${v}`, 'warning');
+                });
+            }
+            if (event.data.hint) {
+                addThinkingEntry(timestamp, `💡 ${event.data.hint}`, 'reasoning');
+            }
+            break;
+            
+        case 'input_guard_blocked':
+            addThinkingEntry(timestamp, '❌ Input Blocked by Safety Guardrail', 'error');
+            if (event.data.violations) {
+                event.data.violations.forEach(v => {
+                    addThinkingEntry(timestamp, ` - ${v}`, 'error');
+                });
+            }
+            addThinkingEntry(timestamp, `Reason: ${event.data.reasoning}`, 'error');
+            break;
+        
+        // NEW: Output Guardrail Events
+        case 'output_guard_start':
+            addThinkingEntry(timestamp, `🛡️ Checking scene ${event.data.node_index} output safety...`);
+            break;
+            
+        case 'output_guard_passed':
+            addThinkingEntry(timestamp, `✅ Scene ${event.data.node_index} output safe`, 'complete');
+            break;
+            
+        case 'output_guard_warning':
+            addThinkingEntry(timestamp, `⚠️ Scene ${event.data.node_index}: ${event.data.message}`, 'warning');
+            if (event.data.violations && event.data.violations.length > 0) {
+                event.data.violations.forEach(v => {
+                    addThinkingEntry(timestamp, ` - ${v}`, 'warning');
+                });
+            }
+            break;
+            
+        case 'output_guard_blocked':
+            addThinkingEntry(timestamp, `❌ Scene ${event.data.node_index} Blocked by Output Guardrail`, 'error');
+            if (event.data.violations) {
+                event.data.violations.forEach(v => {
+                    addThinkingEntry(timestamp, ` - ${v}`, 'error');
+                });
+            }
+            break;
+        
+        // NEW: Workflow node progress events
+        case 'node_start':
+            addThinkingEntry(timestamp, event.data.message, 'info');
+            break;
+            
+        case 'node_complete':
+            addThinkingEntry(timestamp, event.data.message, 'complete');
+            break;
+        
+        
         case 'chunk_start':
-            addThinkingEntry(timestamp, `📝 Rendering scene ${event.data.node_index}/${event.data.total_nodes}: ${event.data.action}`);
+            addThinkingEntry(timestamp, `📝 Generating scene ${event.data.node_index}/${event.data.total_nodes}...`, 'info');
+            addThinkingEntry(timestamp, `   Action: ${event.data.action}`, 'reasoning');
             break;
             
         case 'chunk_reasoning':
-            addThinkingEntry(timestamp, `💭 Current Reasoning: ${event.data.reasoning}`, 'reasoning');
+            addThinkingEntry(timestamp, `💭 ${event.data.reasoning}`, 'reasoning');
             break;
             
         case 'chunk_complete':
             addThinkingEntry(timestamp, `✅ Scene ${event.data.chunks_rendered}/${event.data.total_chunks} complete (${event.data.word_count} words)`);
             updateMetric('metricChunksRendered', event.data.chunks_rendered);
+            
+            // STREAM THE NEW CHUNK as it arrives
+            if (event.data.text && window.streamWords) {
+                const storyOutput = document.getElementById('story-output');
+                
+                // Remove placeholder if present
+                const placeholder = storyOutput.querySelector('.placeholder-text');
+                if (placeholder) {
+                    placeholder.remove();
+                }
+                
+                // Create new paragraph for this chunk
+                const paragraph = document.createElement('p');
+                paragraph.className = 'story-paragraph';
+                paragraph.style.marginBottom = '1.5em';
+                storyOutput.appendChild(paragraph);
+                
+                // Stream words into paragraph (async, non-blocking)
+                window.streamWords(event.data.text, paragraph).then(() => {
+                    // Auto-scroll after streaming complete
+                    storyOutput.scrollTop = storyOutput.scrollHeight;
+                });
+            }
             break;
             
         case 'workflow_complete':
@@ -234,11 +326,9 @@ function renderThinking(state) {
     const nodes = story.graph?.nodes || [];
     const renderedCount = Object.keys(story.rendered_chunks || {}).length;
 
-    // Clear and rebuild logs to avoid duplicates (naive approach for Phase 1)
     let logHTML = `<div class="log-entry">Graph Nodes: ${nodes.length}</div>`;
     logHTML += `<div class="log-entry">Chunks Rendered: ${renderedCount}</div>`;
 
-    // Show reasoning of the last processed node
     if (nodes.length > 0) {
         const lastNode = nodes[renderedCount > 0 ? renderedCount - 1 : 0];
         if (lastNode && lastNode.reasoning) {

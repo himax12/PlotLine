@@ -302,6 +302,9 @@ textarea {
     font-size: 0.85rem;
     line-height: 1.5;
     color: #cbd5e1;
+    /* REMOVED truncation - allow full text */
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .thinking-entry.complete {

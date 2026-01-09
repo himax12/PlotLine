@@ -12,6 +12,7 @@ from backend.agents.deconstructor import deconstructor
 from backend.agents.scribe import scribe
 from backend.agents.mapper import mapper  # Phase 2
 from backend.agents.oracle import oracle  # Phase 2
+# Removed custom guardrails - using Gemini's built-in safety settings instead
 
 # We need a state compatible with LangGraph
 # StoryState is our Pydantic model, but LangGraph usually likes TypedDict or Pydantic.
@@ -26,19 +27,36 @@ class GraphState(TypedDict):
     current_node_index: int # specialized for the render loop
 
 # --- Nodes ---
+# (Custom guardrails removed - Gemini's built-in safety handles content filtering)
 
 async def node_deconstruct(state: GraphState):
     """Node: Turn raw text into LogicGraph."""
     try:
         text = state["story_state"].input_text
+        task_id = state.get("task_id")  # Get task_id for SSE events
+        
         print(f"--- WORKFLOW NODE: DECONSTRUCT ---")
         print(f"Input: {text[:50]}...")
         logger.info(f"Workflow: Starting Deconstruction for input: {text[:50]}...")
+        
+        # Emit SSE event: Deconstruction started
+        from backend.utils.event_emitter import event_emitter
+        await event_emitter.emit(task_id, "node_start", {
+            "node": "deconstruct",
+            "message": "🔍 Analyzing story structure and extracting events..."
+        })
         
         # Run Agent
         logic_graph = await deconstructor.run(text)
         print(f"Deconstruction returned graph with {len(logic_graph.nodes)} nodes.")
         logger.info(f"Workflow: Deconstruction complete. LogicGraph has {len(logic_graph.nodes)} nodes.")
+        
+        # Emit SSE event: Deconstruction complete
+        await event_emitter.emit(task_id, "node_complete", {
+            "node": "deconstruct",
+            "message": f"✅ Found {len(logic_graph.nodes)} story events",
+            "node_count": len(logic_graph.nodes)
+        })
         
         # Update State
         state["story_state"].graph = logic_graph
@@ -55,6 +73,7 @@ async def node_scribe(state: GraphState):
         idx = state["current_node_index"]
         story = state["story_state"]
         nodes = story.graph.nodes
+        task_id = state.get("task_id")
         
         if idx >= len(nodes):
             # Should be handled by conditional edge, but safety check
@@ -67,6 +86,14 @@ async def node_scribe(state: GraphState):
         print(f"Processing Node ID: {current_node.id}")
         logger.info(f"Workflow: Processing Node {idx+1}/{len(nodes)} (ID: {current_node.id})...")
         
+        # Emit chunk_start for transparency
+        from backend.utils.event_emitter import event_emitter
+        await event_emitter.emit(task_id, "chunk_start", {
+            "node_index": idx + 1,
+            "total_nodes": len(nodes),
+            "action": current_node.action
+        })
+        
         # Run Agent
         prose_chunk = await scribe.run(
             node=current_node,
@@ -78,6 +105,9 @@ async def node_scribe(state: GraphState):
             safety_level=story.safety_level
         )
         
+        # Gemini's built-in safety will block harmful content automatically
+        # No need for additional output guardrail checks
+        
         # Update State (Rendered Chunk)
         story.rendered_chunks[current_node.id] = prose_chunk
         
@@ -85,6 +115,15 @@ async def node_scribe(state: GraphState):
         # Real implementation needs Summarizer Agent here
         story.memory.last_paragraph = prose_chunk
         story.memory.running_summary += f"\n{prose_chunk}" 
+        
+        # STREAM THE CHUNK TEXT - Full transparency!
+        await event_emitter.emit(task_id, "chunk_complete", {
+            "node_index": idx + 1,
+            "chunks_rendered": idx + 1,
+            "total_chunks": len(nodes),
+            "word_count": len(prose_chunk.split()),
+            "text": prose_chunk  # ← STREAM THE ACTUAL TEXT!
+        })
         
         return {"story_state": story, "current_node_index": idx + 1}
     except Exception as e:
@@ -116,8 +155,16 @@ async def node_map(state: GraphState):
 async def node_validate(state: GraphState):
     """Node: Validate story consistency (Tier 1 + Tier 2)."""
     try:
+        task_id = state.get("task_id")
         print("--- WORKFLOW NODE: VALIDATE ---")
         logger.info("Workflow: Starting validation...")
+        
+        # Emit SSE event: Validation started
+        from backend.utils.event_emitter import event_emitter
+        await event_emitter.emit(task_id, "node_start", {
+            "node": "validate",
+            "message": "🔎 Validating story logic and consistency..."
+        })
         
         # Tier 1: Symbolic validation
         print("Oracle: Running Tier 1 (Symbolic)...")
@@ -136,6 +183,13 @@ async def node_validate(state: GraphState):
         is_valid = all(r.is_valid for r in state["story_state"].validation_results)
         print(f"Validation: {'PASSED' if is_valid else 'FAILED'}")
         logger.info(f"Workflow: Validation complete. Valid: {is_valid}")
+        
+        # Emit SSE event: Validation complete
+        await event_emitter.emit(task_id, "node_complete", {
+            "node": "validate",
+            "message": f"{'✅ Story logic validated' if is_valid else '⚠️ Validation issues found'}",
+            "is_valid": is_valid
+        })
         
         return {"story_state": state["story_state"]}
     except Exception as e:
@@ -158,16 +212,17 @@ def should_continue_scribing(state: GraphState):
 
 workflow = StateGraph(GraphState)
 
+# No custom guardrails - Gemini's built-in safety handles content filtering
 workflow.add_node("deconstruct", node_deconstruct)
 workflow.add_node("map", node_map)  # Phase 2
 workflow.add_node("validate", node_validate)  # Phase 2
 workflow.add_node("scribe", node_scribe)
 
 # Set Entry Point
-workflow.set_entry_point("deconstruct")
+workflow.set_entry_point("deconstruct")  # Start directly with deconstruction
 
 # Edges
-# Phase 2 Flow: DECONSTRUCT -> MAP -> VALIDATE -> SCRIBE_LOOP -> END
+# Flow: DECONSTRUCT -> MAP -> VALIDATE -> SCRIBE_LOOP -> END
 workflow.add_edge("deconstruct", "map")
 workflow.add_edge("map", "validate")
 workflow.add_edge("validate", "scribe")

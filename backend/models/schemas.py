@@ -110,4 +110,8 @@ class StoryState(BaseModel):
     analogical_mapping: Optional[AnalogicalMapping] = Field(default=None, description="4-layer analogical analysis")
     validation_results: List[ValidationResult] = Field(default_factory=list, description="Validation results from OracleAgent")
     
+    # Guardrails: Input/Output Safety
+    input_guardrail_result: Optional[Any] = Field(default=None, description="Input validation result from GuardrailAgent")
+    output_guardrail_results: List[Any] = Field(default_factory=list, description="Output validation results per chunk")
+    
     # Checkpointing is handled by LangGraph natively, but we can store explicit snapshots if needed.
